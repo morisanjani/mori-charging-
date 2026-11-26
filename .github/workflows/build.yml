@@ -11,7 +11,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -24,27 +24,19 @@ jobs:
 
       - name: Extract project
         run: |
-          unzip -o Mori_Charging_Anime_CloudBuild.zip -d project
-          echo "PROJECT_DIR=project/MoriChargingAnimeAndroid" >> $GITHUB_ENV
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ZIP file not found"
+            exit 1
+          fi
+          unzip -o "$ZIP_FILE" -d project
+          echo "PROJECT_DIR=$(find project -name settings.gradle -o -name settings.gradle.kts | head -1 | xargs dirname)" >> $GITHUB_ENV
 
       - name: Fix Java and Kotlin targets
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("project/MoriChargingAnimeAndroid/app/build.gradle")
-          s = p.read_text()
-          block = """
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
-          """
-          s = s.replace("android {", "android {\n" + block, 1)
-          p.write_text(s)
-          PY
+          cd "$PROJECT_DIR"
+          find . -name build.gradle -o -name build.gradle.kts
+          sed -i 's/JVM_1_8/JVM_17/g' app/build.gradle 2>/dev/null || true
 
       - name: Build APK
         run: gradle -p "$PROJECT_DIR" assembleDebug
@@ -53,6 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Mori-APK
-          path: project/MoriChargingAnimeAndroid/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          
+          path: project/**/build/outputs/apk/debug/*.apk
