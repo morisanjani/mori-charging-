@@ -1,1 +1,58 @@
+name: Build Mori APK
 
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Extract project
+        run: |
+          unzip -o Mori_Charging_Anime_CloudBuild.zip -d project
+          echo "PROJECT_DIR=project/MoriChargingAnimeAndroid" >> $GITHUB_ENV
+
+      - name: Fix Java and Kotlin targets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("project/MoriChargingAnimeAndroid/app/build.gradle")
+          s = p.read_text()
+          block = """
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+          """
+          s = s.replace("android {", "android {\n" + block, 1)
+          p.write_text(s)
+          PY
+
+      - name: Build APK
+        run: gradle -p "$PROJECT_DIR" assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mori-APK
+          path: project/MoriChargingAnimeAndroid/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          
